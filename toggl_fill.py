@@ -2,10 +2,12 @@
 """Create Toggl Track time entries from a JSON file (output of report-to-json.py).
 
 Usage:
-  TOGGL_API_TOKEN=xxx ./toggl-fill.py entries.json [--dry-run]
+  TOGGL_API_TOKEN=xxx toggl-fill entries.json [--dry-run]
+  TOGGL_API_TOKEN=xxx toggl-fill --export-busy SINCE UNTIL > busy.json
 
 Skips entries that already exist in Toggl (same start + description), so it is
-safe to re-run.
+safe to re-run. --export-busy dumps existing entries for a date range, to feed
+report-to-json --busy so already-tracked time is never double-counted.
 """
 import base64
 import json
@@ -40,6 +42,13 @@ def call(method, path, body=None):
 
 def main():
     args = sys.argv[1:]
+    if "--export-busy" in args:
+        i = args.index("--export-busy")
+        since, until = args[i + 1:i + 3]
+        json.dump(call("GET", f"/me/time_entries?start_date={since}&end_date={until}T23:59:59Z"),
+                  sys.stdout, indent=1)
+        print()
+        return
     dry_run = "--dry-run" in args
     args = [a for a in args if a != "--dry-run"]
     if len(args) != 1:

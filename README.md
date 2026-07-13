@@ -7,11 +7,11 @@ git log  ──►  report.md  ──►  entries.json  ──►  track.toggl.c
      (commit-hours-analysis.sh)  (report-to-json)   (toggl-fill)
 ```
 
-- **`commit-hours-analysis.sh`** — turns your commits (author *or* committer) into a readable report of 30-minute work windows per day.
-- **`report-to-json`** — fills full workdays around those windows (template 8:45–11:45 / 12:10–17:30): gaps split 65% issue work / 35% "code review", off-hours commits stay at their real time, and each ISO week is trimmed to exactly 41h20. Supports days off via `--off`.
-- **`toggl-fill`** — pushes the JSON to Toggl Track: dry-run preview, skips entries that already exist (safe to re-run), handles the hourly API quota by waiting.
+- **`commit-hours-analysis.sh`** — turns your commits (author *or* committer, merges excluded) into a readable report of 30-minute work windows per day.
+- **`report-to-json`** — fills full workdays around those windows (template 8:45–11:45 / 12:10–17:30): gaps split 65% issue work / 35% "code review", off-hours commits stay at their real time, and each ISO week is trimmed to exactly 41h20. Supports days off (`--off`) and already-tracked Toggl time (`--busy`, never double-counted). Same-window commit bursts are merged so entries stay ≥ 20 min, joining descriptions and tags.
+- **`toggl-fill`** — pushes the JSON to Toggl Track: dry-run preview, skips entries that already exist (safe to re-run), handles the hourly API quota by waiting. `--export-busy SINCE UNTIL` dumps existing entries for `--busy`.
 
-Entries get a `NNN-issue` tag (e.g. `200-1530`) and a `#1530: commit title` style description.
+Entries get a `NNN-issue` tag (e.g. `200-1530`) and a `#1530: commit title` style description. Commits without an issue number inherit one when the same title later shows up squash-merged as `title (#1530)`; the rest fall back to the bare project tag.
 
 ## Install
 
@@ -42,6 +42,7 @@ The Makefile loads `.env` automatically; when running scripts by hand, export th
 With the Makefile (run from this repo, pointing at any project):
 
 ```bash
+make busy SINCE=2026-06-26 UNTIL=2026-07-13   # optional: fetch already-tracked time first
 make run  REPO=~/works/git/my-project SINCE=2026-06-26 UNTIL=2026-07-13 OFF=2026-07-01
 make fill                              # push what the dry run showed
 ```
@@ -56,6 +57,20 @@ cd ~/works/git/my-project
 report-to-json report.md --off 2026-07-01 > entries.json
 toggl-fill entries.json --dry-run
 TOGGL_API_TOKEN=xxx toggl-fill entries.json
+```
+
+## Getting issue numbers into every commit
+
+The tagging is only as good as the `#NNNN` in your commit subjects. Name branches `type/NNNN-slug` and add a `prepare-commit-msg` git hook that appends `(#NNNN)` from the branch name — then every commit self-tags with zero discipline:
+
+```bash
+#!/bin/sh
+# prepare-commit-msg: append " (#NNNN)" from branch name type/NNNN-slug
+case "${2:-}" in merge|squash) exit 0 ;; esac
+issue=$(git branch --show-current | sed -n 's|.*/\([0-9][0-9]*\).*|\1|p')
+[ -n "$issue" ] || exit 0
+head -1 "$1" | grep -qE '#[0-9]+' && exit 0
+{ printf '%s (#%s)\n' "$(head -1 "$1")" "$issue"; tail -n +2 "$1"; } > "$1.tmp" && mv "$1.tmp" "$1"
 ```
 
 ## Notes

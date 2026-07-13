@@ -33,10 +33,10 @@ trap "rm -f $TEMP_FILE" EXIT
 
 # Get commits by author OR committer (use two commands and combine)
 {
-  git log --all --pretty=tformat:"%ai|%s" \
+  git log --all --no-merges --pretty=tformat:"%ai|%s" \
     --since="$SINCE 00:00" --until="$UNTIL 23:59" \
     --author="$AUTHOR"
-  git log --all --pretty=tformat:"%ai|%s" \
+  git log --all --no-merges --pretty=tformat:"%ai|%s" \
     --since="$SINCE 00:00" --until="$UNTIL 23:59" \
     --committer="$AUTHOR"
 } | sort -u > "$TEMP_FILE"
