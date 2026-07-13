@@ -12,11 +12,12 @@ Off days get no template fill, lower the week target by 8h16 each, and any
 commits on them stay as real-time entries. Week stats print on stderr.
 """
 import json
+import os
 import re
 import sys
 from datetime import date as Date, datetime, time as Time, timedelta
 
-PROJECT_NUMBER = "200"
+PROJECT_NUMBER = os.environ.get("TOGGL_PROJECT_NUMBER", "200")
 REVIEW_DESC = "code review"
 REVIEW_FRACTION = 0.35
 DAY_START, LUNCH_START, LUNCH_END, DAY_END = 525, 705, 730, 1050  # 8:45 11:45 12:10 17:30
@@ -165,7 +166,7 @@ def trim_weeks(entries, dmin, dmax, off):
     return [e for e in entries if e["dur"] > 0]
 
 
-if __name__ == "__main__":
+def main():
     args = sys.argv[1:]
     off = set()
     if "--off" in args:
@@ -175,6 +176,8 @@ if __name__ == "__main__":
     if len(args) != 1:
         sys.exit("usage: report-to-json.py report.md [--off DATE[,DATE...]]")
     rows, since = parse_report(args[0])
+    if not rows:
+        sys.exit("no commit rows found in report")
     by_day = {}
     for r in rows:
         by_day.setdefault(r[0], []).append(r)
@@ -194,3 +197,7 @@ if __name__ == "__main__":
         "tags": e["tags"],
     } for e in entries], sys.stdout, indent=2, ensure_ascii=False)
     print()
+
+
+if __name__ == "__main__":
+    main()

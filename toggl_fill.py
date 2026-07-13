@@ -15,7 +15,7 @@ import time
 import urllib.request
 
 API = "https://api.track.toggl.com/api/v9"
-PROJECT_NAME = "0200_A0_CalculatorCo2"
+PROJECT_NAME = os.environ.get("TOGGL_PROJECT", "0200_A0_CalculatorCo2")
 
 
 def call(method, path, body=None):

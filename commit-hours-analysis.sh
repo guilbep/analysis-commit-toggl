@@ -7,6 +7,7 @@ set -euo pipefail
 
 SINCE="${SINCE:-2026-06-02}"
 UNTIL="${UNTIL:-2026-06-18}"
+AUTHOR="${AUTHOR:-$(git config user.name)}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -32,12 +33,12 @@ trap "rm -f $TEMP_FILE" EXIT
 
 # Get commits by author OR committer (use two commands and combine)
 {
-  git log --all --pretty=format:"%ai|%s" \
-    --since="$SINCE" --until="$UNTIL 23:59" \
-    --author="Guilbert Pierre"
-  git log --all --pretty=format:"%ai|%s" \
-    --since="$SINCE" --until="$UNTIL 23:59" \
-    --committer="Guilbert Pierre"
+  git log --all --pretty=tformat:"%ai|%s" \
+    --since="$SINCE 00:00" --until="$UNTIL 23:59" \
+    --author="$AUTHOR"
+  git log --all --pretty=tformat:"%ai|%s" \
+    --since="$SINCE 00:00" --until="$UNTIL 23:59" \
+    --committer="$AUTHOR"
 } | sort -u > "$TEMP_FILE"
 
 # Parse and display results
