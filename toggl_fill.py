@@ -8,6 +8,8 @@ Usage:
 Skips entries that already exist in Toggl (same start + description), so it is
 safe to re-run. --export-busy dumps existing entries for a date range, to feed
 report-to-json --busy so already-tracked time is never double-counted.
+An entry may carry "project" (Toggl project name, null for none) to override
+TOGGL_PROJECT.
 """
 import base64
 import json
@@ -15,6 +17,7 @@ import os
 import sys
 import time
 import urllib.request
+from datetime import datetime
 
 API = "https://api.track.toggl.com/api/v9"
 PROJECT_NAME = os.environ.get("TOGGL_PROJECT", "0200_A0_CalculatorCo2")
@@ -59,7 +62,7 @@ def main():
 
     if dry_run:
         for e in entries:
-            print(f"would create: {e['start']}  {e['duration']:>5}s  {e['tags']}  {e['description']}")
+            print(f"would create: {e['start']}  {e['duration']:>5}s  {e.get('project', PROJECT_NAME)}  {e['tags']}  {e['description']}")
         print(f"\n{len(entries)} entries (dry run, nothing sent)")
         return
 
@@ -68,24 +71,28 @@ def main():
 
     me = call("GET", "/me")
     wid = me["default_workspace_id"]
-    projects = call("GET", f"/workspaces/{wid}/projects")
-    project = next((p for p in projects if p["name"] == PROJECT_NAME), None)
-    if not project:
-        sys.exit(f"project {PROJECT_NAME!r} not found in workspace {wid}")
+    projects = {p["name"]: p["id"] for p in call("GET", f"/workspaces/{wid}/projects?active=both&per_page=200")}
+    projects[None] = None  # "project": null in an entry books it without a project
+    for name in {e.get("project", PROJECT_NAME) for e in entries}:
+        if name not in projects:
+            sys.exit(f"project {name!r} not found in workspace {wid}")
+
+    def key(start, desc):  # Toggl answers in UTC, entries carry +02:00: compare instants
+        return datetime.fromisoformat(start).timestamp(), desc or ""
 
     dates = sorted(e["start"][:10] for e in entries)
     existing = call("GET", f"/me/time_entries?start_date={dates[0]}&end_date={dates[-1]}T23:59:59Z")
-    seen = {(x["start"], x.get("description", "")) for x in existing}
+    seen = {key(x["start"], x.get("description")) for x in existing}
 
     created = skipped = 0
     for e in entries:
-        if (e["start"], e["description"]) in seen:
+        if key(e["start"], e["description"]) in seen:
             skipped += 1
             continue
         call("POST", f"/workspaces/{wid}/time_entries", {
             "created_with": "commit-hours-fill",
             "workspace_id": wid,
-            "project_id": project["id"],
+            "project_id": projects[e.get("project", PROJECT_NAME)],
             "start": e["start"],
             "duration": e["duration"],
             "description": e["description"],
